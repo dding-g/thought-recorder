@@ -1,0 +1,23 @@
+{
+  "name": "thought-recorder",
+  "version": "1.0.0",
+  "description": "CLI tool to record and manage your thoughts and ideas",
+  "main": "src/index.js",
+  "bin": {
+    "thought": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "thought": "node src/index.js"
+  },
+  "keywords": [
+    "thought",
+    "recorder",
+    "notes",
+    "ideas",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "type": "module"
+}
