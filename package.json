@@ -1,23 +1,33 @@
 {
   "name": "thought-recorder",
   "version": "1.0.0",
-  "description": "CLI tool to record and manage your thoughts and ideas",
-  "main": "src/index.js",
-  "bin": {
-    "thought": "./src/index.js"
-  },
+  "description": "카카오톡 기반 생각 기록 서비스",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "thought": "node src/index.js"
+    "build": "tsc",
+    "deploy": "serverless deploy",
+    "deploy:prod": "serverless deploy --stage prod",
+    "remove": "serverless remove",
+    "logs": "serverless logs -f kakaoSkill -t",
+    "local": "serverless invoke local -f kakaoSkill -p tests/fixtures/kakao-request.json",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts"
   },
-  "keywords": [
-    "thought",
-    "recorder",
-    "notes",
-    "ideas",
-    "cli"
-  ],
+  "keywords": ["kakao", "chatbot", "thought-recorder"],
   "author": "",
   "license": "MIT",
-  "type": "module"
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
+    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/lib-dynamodb": "^3.700.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.10.0",
+    "dotenv": "^16.4.5",
+    "esbuild": "^0.24.0",
+    "serverless": "^3.39.0",
+    "serverless-esbuild": "^1.54.0",
+    "typescript": "^5.7.0"
+  }
 }
