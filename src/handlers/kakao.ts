@@ -1,13 +1,17 @@
 /**
  * 카카오 오픈빌더 스킬 서버 핸들러
- * Phase 1: Echo 테스트 버전
+ * 전체 통합 버전 (Phase 1-4)
  */
 
 import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import type { KakaoSkillRequest } from '../types/kakao';
+import type { KakaoSkillRequest, KakaoSkillResponse } from '../types/kakao';
 import { buildTextResponse, buildErrorResponse, DEFAULT_QUICK_REPLIES } from '../utils/response';
 import { logger } from '../utils/logger';
-import { logError } from '../utils/error';
+import { logError, getErrorMessage } from '../utils/error';
+import { saveRecord, getTodayRecords, getRecentRecords } from '../services/database';
+import { generateResponse, generateSummary } from '../services/ai';
+import { detectCommand, isGreeting } from '../constants/commands';
+import { HELP_MESSAGE, WELCOME_MESSAGE, NO_RECORDS_MESSAGE } from '../constants/prompts';
 
 /**
  * Lambda 핸들러
@@ -30,7 +34,7 @@ export async function handler(
 
     logger.info('Received message', { userId, utterance });
 
-    // 3. 명령어 분기
+    // 3. 메시지 처리
     const response = await processMessage(userId, utterance);
 
     // 4. 응답 로깅
@@ -41,7 +45,8 @@ export async function handler(
 
   } catch (error) {
     logError(error, { event: event.body });
-    return createResponse(buildErrorResponse());
+    const errorMessage = getErrorMessage(error);
+    return createResponse(buildErrorResponse(errorMessage));
   }
 }
 
@@ -67,70 +72,121 @@ function extractUserId(body: KakaoSkillRequest): string {
 }
 
 /**
- * 메시지 처리 (Phase 1: Echo)
+ * 메시지 처리 (통합)
  */
-async function processMessage(userId: string, utterance: string) {
-  // 명령어 체크
-  if (isHelpCommand(utterance)) {
-    return handleHelp();
+async function processMessage(
+  userId: string,
+  utterance: string
+): Promise<KakaoSkillResponse> {
+  // 1. 명령어 감지
+  const command = detectCommand(utterance);
+
+  switch (command) {
+    case 'help':
+      return handleHelp();
+
+    case 'summary':
+      return handleSummary(userId);
+
+    default:
+      // 2. 인사 체크 (첫 사용자 환영)
+      if (isGreeting(utterance)) {
+        return handleGreeting(userId, utterance);
+      }
+
+      // 3. 일반 대화 처리
+      return handleConversation(userId, utterance);
   }
-
-  if (isSummaryCommand(utterance)) {
-    return handleSummary(userId);
-  }
-
-  // Phase 1: Echo 응답
-  return buildTextResponse(
-    `받은 메시지: "${utterance}"\n\nEcho 테스트 성공!\n(Phase 2에서 저장 기능 추가 예정)`,
-    DEFAULT_QUICK_REPLIES
-  );
-}
-
-/**
- * 도움말 명령어 체크
- */
-function isHelpCommand(text: string): boolean {
-  const commands = ['도움말', '사용법', '도움', 'help', '?'];
-  return commands.some(cmd => text.toLowerCase().includes(cmd));
-}
-
-/**
- * 요약 명령어 체크
- */
-function isSummaryCommand(text: string): boolean {
-  const commands = ['오늘 정리해줘', '오늘 정리', '정리해줘', '하루 정리', '오늘 요약'];
-  return commands.some(cmd => text.includes(cmd));
 }
 
 /**
  * 도움말 응답
  */
-function handleHelp() {
-  const helpText = `생각 기록 친구 사용법
-
-아무 생각이나 편하게 말해줘!
-예시:
-- "오늘 기분 좋아"
-- "회의가 너무 길었어"
-- "좋은 아이디어 떠올랐어"
-
-명령어
-- "오늘 정리해줘" - 하루 기록 요약
-- "도움말" - 이 안내 보기
-
-그냥 친구한테 말하듯이 편하게 해`;
-
-  return buildTextResponse(helpText);
+function handleHelp(): KakaoSkillResponse {
+  return buildTextResponse(HELP_MESSAGE);
 }
 
 /**
- * 요약 응답 (Phase 1: 준비 중)
+ * 인사 처리
  */
-function handleSummary(_userId: string) {
-  return buildTextResponse(
-    '오늘 정리 기능\n\n아직 준비 중이야! Phase 2에서 만나',
-    DEFAULT_QUICK_REPLIES
-  );
+async function handleGreeting(
+  userId: string,
+  utterance: string
+): Promise<KakaoSkillResponse> {
+  try {
+    // 기존 기록 확인
+    const { items: records } = await getRecentRecords(userId, 1);
+
+    if (records.length === 0) {
+      // 첫 사용자: 환영 메시지
+      return buildTextResponse(WELCOME_MESSAGE, DEFAULT_QUICK_REPLIES);
+    }
+
+    // 기존 사용자: 일반 대화로 처리
+    return handleConversation(userId, utterance);
+  } catch {
+    // DB 에러 시 기본 환영 메시지
+    return buildTextResponse(WELCOME_MESSAGE, DEFAULT_QUICK_REPLIES);
+  }
+}
+
+/**
+ * 일반 대화 처리
+ */
+async function handleConversation(
+  userId: string,
+  utterance: string
+): Promise<KakaoSkillResponse> {
+  try {
+    // 1. 최근 대화 맥락 조회
+    const { items: recentRecords } = await getRecentRecords(userId, 5);
+
+    // 2. AI 응답 생성
+    const aiResponse = await generateResponse(utterance, recentRecords);
+
+    // 3. 기록 저장
+    await saveRecord(userId, utterance, aiResponse);
+
+    // 4. 응답 반환
+    return buildTextResponse(aiResponse, DEFAULT_QUICK_REPLIES);
+
+  } catch (error) {
+    logger.error('Conversation handling failed', { error, userId });
+
+    // AI나 DB 에러 시에도 기록은 시도
+    try {
+      await saveRecord(userId, utterance);
+    } catch {
+      // 저장 실패도 무시
+    }
+
+    throw error;
+  }
+}
+
+/**
+ * 오늘 정리 (하루 요약)
+ */
+async function handleSummary(userId: string): Promise<KakaoSkillResponse> {
+  try {
+    // 1. 오늘 기록 조회
+    const todayRecords = await getTodayRecords(userId);
+
+    // 2. 기록 없으면 안내 메시지
+    if (todayRecords.length === 0) {
+      return buildTextResponse(NO_RECORDS_MESSAGE, DEFAULT_QUICK_REPLIES);
+    }
+
+    // 3. AI 요약 생성
+    const summary = await generateSummary(todayRecords);
+
+    // 4. 응답 반환
+    return buildTextResponse(summary, DEFAULT_QUICK_REPLIES);
+
+  } catch (error) {
+    logger.error('Summary generation failed', { error, userId });
+    throw error;
+  }
 }
 
 /**
