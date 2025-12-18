@@ -2,7 +2,7 @@ service: thought-recorder
 
 provider:
   name: aws
-  runtime: nodejs20.x
+  runtime: nodejs22.x
   region: ap-northeast-2
   stage: ${opt:stage, 'dev'}
   memorySize: 256
@@ -38,7 +38,7 @@ custom:
     minify: false
     sourcemap: true
     platform: node
-    target: node20
+    target: node22
     exclude:
       - '@aws-sdk/*'
 

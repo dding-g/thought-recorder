@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "카카오톡 기반 생각 기록 서비스",
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "build": "tsc",
     "deploy": "serverless deploy",

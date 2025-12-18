@@ -10,7 +10,7 @@
 
 ## 기술 스택
 
-- **Runtime**: Node.js 20.x
+- **Runtime**: Node.js 22.x
 - **Language**: TypeScript 5.x
 - **Framework**: Serverless Framework 3.x
 - **Database**: DynamoDB
