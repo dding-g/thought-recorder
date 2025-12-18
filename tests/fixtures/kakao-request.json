@@ -1,0 +1,22 @@
+{
+  "intent": {
+    "id": "fallback",
+    "name": "폴백 블록"
+  },
+  "userRequest": {
+    "timezone": "Asia/Seoul",
+    "utterance": "안녕 테스트 메시지야",
+    "lang": "ko",
+    "user": {
+      "id": "test_bot_user_123",
+      "type": "botUserKey",
+      "properties": {
+        "plusfriendUserKey": "test_user_abc"
+      }
+    }
+  },
+  "bot": {
+    "id": "test_bot_id",
+    "name": "생각 기록 친구"
+  }
+}
